@@ -1,8 +1,7 @@
 package com.moviebooking.movie_booking_monolith.controller;
 
-import com.moviebooking.movie_booking_monolith.entity.Movie;
 import com.moviebooking.movie_booking_monolith.entity.Theater;
-import com.moviebooking.movie_booking_monolith.repository.TheaterRepository;
+import com.moviebooking.movie_booking_monolith.service.TheaterService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -14,43 +13,43 @@ import java.util.List;
 public class TheaterController {
 
     @Autowired
-    private TheaterRepository theaterRepository;
+    private TheaterService theaterService;
 
     @GetMapping
-    public List<Theater> getAllTheaters(){
-        return theaterRepository.findAll();
+    public List<Theater> getAllTheaters() {
+        return theaterService.getAllTheaters();
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<Theater> getTheaterById(@PathVariable Long id){
-        return theaterRepository.findById(id)
-                .map(ResponseEntity::ok)
-                .orElse(ResponseEntity.notFound().build());
+    public ResponseEntity<Theater> getTheaterById(@PathVariable Long id) {
+        try {
+            return ResponseEntity.ok(theaterService.getTheaterById(id));
+        } catch (RuntimeException e) {
+            return ResponseEntity.notFound().build();
+        }
     }
 
     @PostMapping
-    public Theater createTheater(@RequestBody Theater theater){
-        return theaterRepository.save(theater);
+    public ResponseEntity<Theater> createTheater(@RequestBody Theater theater) {
+        return ResponseEntity.ok(theaterService.createTheater(theater));
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<Theater> updateTheater(@PathVariable Long id,@RequestBody Theater theaterDetails){
-        return theaterRepository.findById(id)
-                .map(theater -> {
-                    theater.setName(theaterDetails.getName());
-                    theater.setAddress(theaterDetails.getAddress());
-                    theater.setCity(theaterDetails.getCity());
-                    theater.setTotalSeats(theaterDetails.getTotalSeats());
-                    return ResponseEntity.ok(theaterRepository.save(theater));
-                }).orElse(ResponseEntity.notFound().build());
+    public ResponseEntity<Theater> updateTheater(@PathVariable Long id, @RequestBody Theater theaterDetails) {
+        try {
+            return ResponseEntity.ok(theaterService.updateTheater(id, theaterDetails));
+        } catch (RuntimeException e) {
+            return ResponseEntity.notFound().build();
+        }
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteTheater(@PathVariable Long id){
-        if(theaterRepository.existsById(id)){
-            theaterRepository.deleteById(id);
+    public ResponseEntity<Void> deleteTheater(@PathVariable Long id) {
+        try {
+            theaterService.deleteTheater(id);
             return ResponseEntity.ok().build();
+        } catch (RuntimeException e) {
+            return ResponseEntity.notFound().build();
         }
-        return ResponseEntity.notFound().build();
     }
 }
