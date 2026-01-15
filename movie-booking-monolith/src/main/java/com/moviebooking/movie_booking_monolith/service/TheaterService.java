@@ -1,42 +1,59 @@
 package com.moviebooking.movie_booking_monolith.service;
 
+import com.moviebooking.movie_booking_monolith.dto.request.TheaterRequest;
+import com.moviebooking.movie_booking_monolith.dto.response.TheaterResponse;
 import com.moviebooking.movie_booking_monolith.entity.Theater;
+import com.moviebooking.movie_booking_monolith.exception.ResourceNotFoundException;
+import com.moviebooking.movie_booking_monolith.mapper.TheaterMapper;
 import com.moviebooking.movie_booking_monolith.repository.TheaterRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
 @Service
+@Transactional
 public class TheaterService {
 
     @Autowired
     private TheaterRepository theaterRepository;
 
-    public List<Theater> getAllTheaters() {
-        return theaterRepository.findAll();
+    @Autowired
+    private TheaterMapper theaterMapper;
+
+    @Transactional(readOnly = true)
+    public List<TheaterResponse> getAll() {
+        List<Theater> theaters = theaterRepository.findAll();
+        return theaterMapper.toResponseList(theaters);
     }
 
-    public Theater getTheaterById(Long id) {
-        return theaterRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Theater not found with id: " + id));
+    @Transactional(readOnly = true)
+    public TheaterResponse getById(Long id) {
+        Theater theater = findTheaterById(id);
+        return theaterMapper.toResponse(theater);
     }
 
-    public Theater createTheater(Theater theater) {
-        return theaterRepository.save(theater);
+    public TheaterResponse create(TheaterRequest request) {
+        Theater theater = theaterMapper.toEntity(request);
+        Theater saved = theaterRepository.save(theater);
+        return theaterMapper.toResponse(saved);
     }
 
-    public Theater updateTheater(Long id, Theater theaterDetails) {
-        Theater theater = getTheaterById(id);
-        theater.setName(theaterDetails.getName());
-        theater.setAddress(theaterDetails.getAddress());
-        theater.setCity(theaterDetails.getCity());
-        theater.setTotalSeats(theaterDetails.getTotalSeats());
-        return theaterRepository.save(theater);
+    public TheaterResponse update(Long id, TheaterRequest request) {
+        Theater theater = findTheaterById(id);
+        theaterMapper.updateEntity(theater, request);
+        Theater updated = theaterRepository.save(theater);
+        return theaterMapper.toResponse(updated);
     }
 
-    public void deleteTheater(Long id) {
-        Theater theater = getTheaterById(id);
+    public void delete(Long id) {
+        Theater theater = findTheaterById(id);
         theaterRepository.delete(theater);
+    }
+
+    private Theater findTheaterById(Long id) {
+        return theaterRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Theater", "id", id));
     }
 }

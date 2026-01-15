@@ -1,10 +1,12 @@
 package com.moviebooking.movie_booking_monolith.controller;
 
-import com.moviebooking.movie_booking_monolith.dto.BookingResponse;
-import com.moviebooking.movie_booking_monolith.dto.CreateBookingRequest;
-import com.moviebooking.movie_booking_monolith.entity.Booking;
+import com.moviebooking.movie_booking_monolith.dto.request.BookingRequest;
+import com.moviebooking.movie_booking_monolith.dto.response.ApiResponse;
+import com.moviebooking.movie_booking_monolith.dto.response.BookingResponse;
 import com.moviebooking.movie_booking_monolith.service.BookingService;
+import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -17,32 +19,34 @@ public class BookingController {
     @Autowired
     private BookingService bookingService;
 
-    @PostMapping
-    public ResponseEntity<BookingResponse> createBooking(@RequestBody CreateBookingRequest request) {
-        try {
-            BookingResponse response = bookingService.createBooking(request);
-            return ResponseEntity.ok(response);
-        } catch (RuntimeException e) {
-            return ResponseEntity.badRequest().body(null);
-        }
-    }
-
     @GetMapping("/{id}")
-    public ResponseEntity<Booking> getBookingById(@PathVariable Long id) {
-        try {
-            return ResponseEntity.ok(bookingService.getBookingById(id));
-        } catch (RuntimeException e) {
-            return ResponseEntity.notFound().build();
-        }
+    public ResponseEntity<ApiResponse<BookingResponse>> getById(@PathVariable Long id) {
+        BookingResponse booking = bookingService.getById(id);
+        return ResponseEntity.ok(ApiResponse.success(booking));
     }
 
     @GetMapping("/by-user/{userId}")
-    public List<Booking> getBookingsByUser(@PathVariable Long userId) {
-        return bookingService.getBookingsByUser(userId);
+    public ResponseEntity<ApiResponse<List<BookingResponse>>> getByUser(@PathVariable Long userId) {
+        List<BookingResponse> bookings = bookingService.getByUser(userId);
+        return ResponseEntity.ok(ApiResponse.success(bookings));
     }
 
     @GetMapping("/by-show/{showId}")
-    public List<Booking> getBookingsByShow(@PathVariable Long showId) {
-        return bookingService.getBookingsByShow(showId);
+    public ResponseEntity<ApiResponse<List<BookingResponse>>> getByShow(@PathVariable Long showId) {
+        List<BookingResponse> bookings = bookingService.getByShow(showId);
+        return ResponseEntity.ok(ApiResponse.success(bookings));
+    }
+
+    @PostMapping
+    public ResponseEntity<ApiResponse<BookingResponse>> create(@Valid @RequestBody BookingRequest request) {
+        BookingResponse created = bookingService.create(request);
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ApiResponse.success("Booking confirmed successfully", created));
+    }
+
+    @PostMapping("/{id}/cancel")
+    public ResponseEntity<ApiResponse<BookingResponse>> cancel(@PathVariable Long id) {
+        BookingResponse cancelled = bookingService.cancel(id);
+        return ResponseEntity.ok(ApiResponse.success("Booking cancelled successfully", cancelled));
     }
 }

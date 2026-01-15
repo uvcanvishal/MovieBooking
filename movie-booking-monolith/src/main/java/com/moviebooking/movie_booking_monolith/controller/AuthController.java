@@ -1,8 +1,13 @@
 package com.moviebooking.movie_booking_monolith.controller;
 
-import com.moviebooking.movie_booking_monolith.dto.*;
-import com.moviebooking.movie_booking_monolith.service.UserService;
+import com.moviebooking.movie_booking_monolith.dto.request.LoginRequest;
+import com.moviebooking.movie_booking_monolith.dto.request.RegisterRequest;
+import com.moviebooking.movie_booking_monolith.dto.response.ApiResponse;
+import com.moviebooking.movie_booking_monolith.dto.response.UserResponse;
+import com.moviebooking.movie_booking_monolith.service.AuthService;
+import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -11,25 +16,18 @@ import org.springframework.web.bind.annotation.*;
 public class AuthController {
 
     @Autowired
-    private UserService userService;
+    private AuthService authService;
 
     @PostMapping("/register")
-    public ResponseEntity<UserResponse> register(@RequestBody RegisterRequest request) {
-        try {
-            UserResponse user = userService.register(request);
-            return ResponseEntity.ok(user);
-        } catch (RuntimeException e) {
-            return ResponseEntity.badRequest().build();
-        }
+    public ResponseEntity<ApiResponse<UserResponse>> register(@Valid @RequestBody RegisterRequest request) {
+        UserResponse user = authService.register(request);
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ApiResponse.success("User registered successfully", user));
     }
 
     @PostMapping("/login")
-    public ResponseEntity<UserResponse> login(@RequestBody LoginRequest request) {
-        try {
-            UserResponse user = userService.login(request);
-            return ResponseEntity.ok(user);
-        } catch (RuntimeException e) {
-            return ResponseEntity.badRequest().build();
-        }
+    public ResponseEntity<ApiResponse<UserResponse>> login(@Valid @RequestBody LoginRequest request) {
+        UserResponse user = authService.login(request);
+        return ResponseEntity.ok(ApiResponse.success("Login successful", user));
     }
 }

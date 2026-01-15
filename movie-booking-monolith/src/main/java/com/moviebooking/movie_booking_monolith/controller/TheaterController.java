@@ -1,8 +1,12 @@
 package com.moviebooking.movie_booking_monolith.controller;
 
-import com.moviebooking.movie_booking_monolith.entity.Theater;
+import com.moviebooking.movie_booking_monolith.dto.request.TheaterRequest;
+import com.moviebooking.movie_booking_monolith.dto.response.ApiResponse;
+import com.moviebooking.movie_booking_monolith.dto.response.TheaterResponse;
 import com.moviebooking.movie_booking_monolith.service.TheaterService;
+import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -16,40 +20,34 @@ public class TheaterController {
     private TheaterService theaterService;
 
     @GetMapping
-    public List<Theater> getAllTheaters() {
-        return theaterService.getAllTheaters();
+    public ResponseEntity<ApiResponse<List<TheaterResponse>>> getAll() {
+        List<TheaterResponse> theaters = theaterService.getAll();
+        return ResponseEntity.ok(ApiResponse.success(theaters));
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<Theater> getTheaterById(@PathVariable Long id) {
-        try {
-            return ResponseEntity.ok(theaterService.getTheaterById(id));
-        } catch (RuntimeException e) {
-            return ResponseEntity.notFound().build();
-        }
+    public ResponseEntity<ApiResponse<TheaterResponse>> getById(@PathVariable Long id) {
+        TheaterResponse theater = theaterService.getById(id);
+        return ResponseEntity.ok(ApiResponse.success(theater));
     }
 
     @PostMapping
-    public ResponseEntity<Theater> createTheater(@RequestBody Theater theater) {
-        return ResponseEntity.ok(theaterService.createTheater(theater));
+    public ResponseEntity<ApiResponse<TheaterResponse>> create(@Valid @RequestBody TheaterRequest request) {
+        TheaterResponse created = theaterService.create(request);
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ApiResponse.success("Theater created successfully", created));
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<Theater> updateTheater(@PathVariable Long id, @RequestBody Theater theaterDetails) {
-        try {
-            return ResponseEntity.ok(theaterService.updateTheater(id, theaterDetails));
-        } catch (RuntimeException e) {
-            return ResponseEntity.notFound().build();
-        }
+    public ResponseEntity<ApiResponse<TheaterResponse>> update(@PathVariable Long id,
+                                                               @Valid @RequestBody TheaterRequest request) {
+        TheaterResponse updated = theaterService.update(id, request);
+        return ResponseEntity.ok(ApiResponse.success("Theater updated successfully", updated));
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteTheater(@PathVariable Long id) {
-        try {
-            theaterService.deleteTheater(id);
-            return ResponseEntity.ok().build();
-        } catch (RuntimeException e) {
-            return ResponseEntity.notFound().build();
-        }
+    public ResponseEntity<ApiResponse<Void>> delete(@PathVariable Long id) {
+        theaterService.delete(id);
+        return ResponseEntity.ok(ApiResponse.success("Theater deleted successfully", null));
     }
 }

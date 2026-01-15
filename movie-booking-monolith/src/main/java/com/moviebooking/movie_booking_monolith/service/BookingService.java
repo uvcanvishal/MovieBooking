@@ -1,18 +1,23 @@
 package com.moviebooking.movie_booking_monolith.service;
 
-import com.moviebooking.movie_booking_monolith.dto.BookingResponse;
-import com.moviebooking.movie_booking_monolith.dto.CreateBookingRequest;
+import com.moviebooking.movie_booking_monolith.dto.request.BookingRequest;
+import com.moviebooking.movie_booking_monolith.dto.response.BookingResponse;
 import com.moviebooking.movie_booking_monolith.entity.*;
 import com.moviebooking.movie_booking_monolith.enums.BookingStatus;
 import com.moviebooking.movie_booking_monolith.enums.SeatStatus;
+import com.moviebooking.movie_booking_monolith.exception.BadRequestException;
+import com.moviebooking.movie_booking_monolith.exception.ResourceNotFoundException;
+import com.moviebooking.movie_booking_monolith.mapper.BookingMapper;
 import com.moviebooking.movie_booking_monolith.repository.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
 
 @Service
+@Transactional
 public class BookingService {
 
     @Autowired
@@ -27,28 +32,60 @@ public class BookingService {
     @Autowired
     private UserRepository userRepository;
 
-    public BookingResponse createBooking(CreateBookingRequest request) {
+    @Autowired
+    private BookingMapper bookingMapper;
+
+    @Transactional(readOnly = true)
+    public BookingResponse getById(Long id) {
+        Booking booking = findBookingById(id);
+        return bookingMapper.toResponse(booking);
+    }
+
+    @Transactional(readOnly = true)
+    public List<BookingResponse> getByUser(Long userId) {
+        List<Booking> bookings = bookingRepository.findByUserId(userId);
+        return bookingMapper.toResponseList(bookings);
+    }
+
+    @Transactional(readOnly = true)
+    public List<BookingResponse> getByShow(Long showId) {
+        List<Booking> bookings = bookingRepository.findByShowId(showId);
+        return bookingMapper.toResponseList(bookings);
+    }
+
+    public BookingResponse create(BookingRequest request) {
+        // 1. Validate user
         User user = userRepository.findById(request.getUserId())
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("User", "id", request.getUserId()));
 
+        // 2. Validate show
         Show show = showRepository.findById(request.getShowId())
-                .orElseThrow(() -> new RuntimeException("Show not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Show", "id", request.getShowId()));
 
+        // 3. Check show is in future
+        if (show.getShowTime().isBefore(LocalDateTime.now())) {
+            throw new BadRequestException("Cannot book for a show that has already started");
+        }
+
+        // 4. Find requested seats
         List<Seat> seats = seatRepository.findByTheaterIdAndSeatNumberIn(
                 show.getTheater().getId(), request.getSeatNumbers());
 
         if (seats.size() != request.getSeatNumbers().size()) {
-            throw new RuntimeException("Some seats not found for this theater");
+            throw new BadRequestException("One or more seats not found in this theater");
         }
 
+        // 5. Check seat availability
         for (Seat seat : seats) {
-            if (!seat.getStatus().equals(SeatStatus.AVAILABLE)) {
-                throw new RuntimeException("Seat " + seat.getSeatNumber() + " not available");
+            if (seat.getStatus() != SeatStatus.AVAILABLE) {
+                throw new BadRequestException("Seat " + seat.getSeatNumber() + " is not available");
             }
         }
 
+        // 6. Calculate total amount
         double totalAmount = show.getPrice() * seats.size();
 
+        // 7. Create booking
         Booking booking = new Booking();
         booking.setUser(user);
         booking.setShow(show);
@@ -59,32 +96,38 @@ public class BookingService {
 
         Booking saved = bookingRepository.save(booking);
 
-        for (Seat seat : seats) {
-            seat.setStatus(SeatStatus.BOOKED);
-            seatRepository.save(seat);
+        // 8. Mark seats as booked
+        seats.forEach(seat -> seat.setStatus(SeatStatus.BOOKED));
+        seatRepository.saveAll(seats);
+
+        return bookingMapper.toResponse(saved);
+    }
+
+    public BookingResponse cancel(Long id) {
+        Booking booking = findBookingById(id);
+
+        if (booking.getStatus() == BookingStatus.CANCELLED) {
+            throw new BadRequestException("Booking is already cancelled");
         }
 
-        return new BookingResponse(
-                saved.getId(),
-                user.getName(),
-                show.getMovie().getName(),
-                show.getTheater().getName(),
-                seats.size(),
-                totalAmount,
-                saved.getStatus().name()
-        );
+        // Check if show has started
+        if (booking.getShow().getShowTime().isBefore(LocalDateTime.now())) {
+            throw new BadRequestException("Cannot cancel booking for a show that has already started");
+        }
+
+        // Release seats
+        booking.getSeats().forEach(seat -> seat.setStatus(SeatStatus.AVAILABLE));
+        seatRepository.saveAll(booking.getSeats());
+
+        // Cancel booking
+        booking.setStatus(BookingStatus.CANCELLED);
+        Booking cancelled = bookingRepository.save(booking);
+
+        return bookingMapper.toResponse(cancelled);
     }
 
-    public Booking getBookingById(Long id) {
+    private Booking findBookingById(Long id) {
         return bookingRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Booking not found with id " + id));
-    }
-
-    public List<Booking> getBookingsByUser(Long userId) {
-        return bookingRepository.findByUserId(userId);
-    }
-
-    public List<Booking> getBookingsByShow(Long showId) {
-        return bookingRepository.findByShowId(showId);
+                .orElseThrow(() -> new ResourceNotFoundException("Booking", "id", id));
     }
 }

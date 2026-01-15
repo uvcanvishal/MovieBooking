@@ -1,12 +1,15 @@
 package com.moviebooking.movie_booking_monolith.controller;
 
-import com.moviebooking.movie_booking_monolith.entity.Show;
+import com.moviebooking.movie_booking_monolith.dto.request.ShowRequest;
+import com.moviebooking.movie_booking_monolith.dto.response.ApiResponse;
+import com.moviebooking.movie_booking_monolith.dto.response.ShowResponse;
 import com.moviebooking.movie_booking_monolith.service.ShowService;
+import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.time.LocalDateTime;
 import java.util.List;
 
 @RestController
@@ -16,38 +19,40 @@ public class ShowController {
     @Autowired
     private ShowService showService;
 
-    // Create show (same behavior as before, but via service)
-    @PostMapping
-    public ResponseEntity<Show> createShow(@RequestParam Long movieId,
-                                           @RequestParam Long theaterId,
-                                           @RequestParam Double price) {
-        // For now, showTime = tomorrow; later you can pass as param or JSON.
-        LocalDateTime showTime = LocalDateTime.now().plusDays(1);
-        Show show = showService.createShow(movieId, theaterId, price, showTime);
-        return ResponseEntity.ok(show);
-    }
-
     @GetMapping
-    public List<Show> getAllShows() {
-        return showService.getAllShows();
+    public ResponseEntity<ApiResponse<List<ShowResponse>>> getAll() {
+        List<ShowResponse> shows = showService.getAll();
+        return ResponseEntity.ok(ApiResponse.success(shows));
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<Show> getShowById(@PathVariable Long id) {
-        try {
-            return ResponseEntity.ok(showService.getShowById(id));
-        } catch (RuntimeException e) {
-            return ResponseEntity.notFound().build();
-        }
+    public ResponseEntity<ApiResponse<ShowResponse>> getById(@PathVariable Long id) {
+        ShowResponse show = showService.getById(id);
+        return ResponseEntity.ok(ApiResponse.success(show));
     }
 
     @GetMapping("/by-movie/{movieId}")
-    public List<Show> getShowsByMovie(@PathVariable Long movieId) {
-        return showService.getShowsByMovie(movieId);
+    public ResponseEntity<ApiResponse<List<ShowResponse>>> getByMovie(@PathVariable Long movieId) {
+        List<ShowResponse> shows = showService.getByMovie(movieId);
+        return ResponseEntity.ok(ApiResponse.success(shows));
     }
 
     @GetMapping("/by-theater/{theaterId}")
-    public List<Show> getShowsByTheater(@PathVariable Long theaterId) {
-        return showService.getShowsByTheater(theaterId);
+    public ResponseEntity<ApiResponse<List<ShowResponse>>> getByTheater(@PathVariable Long theaterId) {
+        List<ShowResponse> shows = showService.getByTheater(theaterId);
+        return ResponseEntity.ok(ApiResponse.success(shows));
+    }
+
+    @PostMapping
+    public ResponseEntity<ApiResponse<ShowResponse>> create(@Valid @RequestBody ShowRequest request) {
+        ShowResponse created = showService.create(request);
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ApiResponse.success("Show created successfully", created));
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<ApiResponse<Void>> delete(@PathVariable Long id) {
+        showService.delete(id);
+        return ResponseEntity.ok(ApiResponse.success("Show deleted successfully", null));
     }
 }
