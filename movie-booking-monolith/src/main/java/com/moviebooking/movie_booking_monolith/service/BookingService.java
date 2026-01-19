@@ -12,6 +12,9 @@ import com.moviebooking.movie_booking_monolith.repository.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -54,6 +57,12 @@ public class BookingService {
     }
 
     public BookingResponse create(BookingRequest request) {
+        if (bookingRepository.existsActiveBookingForSeats(
+                request.getUserId(),
+                request.getShowId(),
+                request.getSeatNumbers())) {
+            throw new BadRequestException("You already have a confirmed booking for one or more of these seats");
+        }
         // 1. Validate user
         User user = userRepository.findById(request.getUserId())
                 .orElseThrow(() -> new ResourceNotFoundException("User", "id", request.getUserId()));
@@ -129,5 +138,24 @@ public class BookingService {
     private Booking findBookingById(Long id) {
         return bookingRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Booking", "id", id));
+    }
+
+    // NEW: Pagination methods
+    @Transactional(readOnly = true)
+    public Page<BookingResponse> getPage(Pageable pageable) {
+        return bookingRepository.findAll(pageable)
+                .map(bookingMapper::toResponse);
+    }
+
+    @Transactional(readOnly = true)
+    public Page<BookingResponse> getPageByUser(Long userId, Pageable pageable) {
+        return bookingRepository.findByUserId(userId, pageable)
+                .map(bookingMapper::toResponse);
+    }
+
+    @Transactional(readOnly = true)
+    public Page<BookingResponse> getPageByShow(Long showId, Pageable pageable) {
+        return bookingRepository.findByShowId(showId, pageable)
+                .map(bookingMapper::toResponse);
     }
 }

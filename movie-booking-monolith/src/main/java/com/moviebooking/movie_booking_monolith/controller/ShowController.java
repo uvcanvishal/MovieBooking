@@ -9,6 +9,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
 
 import java.util.List;
 
@@ -54,5 +57,28 @@ public class ShowController {
     public ResponseEntity<ApiResponse<Void>> delete(@PathVariable Long id) {
         showService.delete(id);
         return ResponseEntity.ok(ApiResponse.success("Show deleted successfully", null));
+    }
+
+    @GetMapping("/page")
+    public ResponseEntity<ApiResponse<Page<ShowResponse>>> getPage(
+            @PageableDefault(size = 10, sort = "showTime") Pageable pageable) {
+        Page<ShowResponse> page = showService.getPage(pageable);
+        return ResponseEntity.ok(ApiResponse.success(page));
+    }
+
+    @GetMapping("/page/by-movie/{movieId}")
+    public ResponseEntity<ApiResponse<Page<ShowResponse>>> getPageByMovie(
+            @PathVariable Long movieId,
+            @PageableDefault(size = 10, sort = "showTime") Pageable pageable) {
+        Page<ShowResponse> page = showService.getPageByMovie(movieId, pageable);
+        return ResponseEntity.ok(ApiResponse.success(page));
+    }
+
+    @GetMapping("/page/by-theater/{theaterId}")
+    public ResponseEntity<ApiResponse<Page<ShowResponse>>> getPageByTheater(
+            @PathVariable Long theaterId,
+            @PageableDefault(size = 10, sort = "showTime") Pageable pageable) {
+        Page<ShowResponse> page = showService.getPageByTheater(theaterId, pageable);
+        return ResponseEntity.ok(ApiResponse.success(page));
     }
 }

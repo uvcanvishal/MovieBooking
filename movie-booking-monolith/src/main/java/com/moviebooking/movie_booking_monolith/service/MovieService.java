@@ -9,6 +9,8 @@ import com.moviebooking.movie_booking_monolith.repository.MovieRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 import java.util.List;
 
@@ -55,5 +57,23 @@ public class MovieService {
     private Movie findMovieById(Long id) {
         return movieRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Movie", "id", id));
+    }
+
+    @Transactional(readOnly = true)
+    public Page<MovieResponse> getPage(Pageable pageable) {
+        return movieRepository.findAll(pageable)
+                .map(movieMapper::toResponse);
+    }
+
+    @Transactional(readOnly = true)
+    public Page<MovieResponse> searchByName(String name, Pageable pageable) {
+        return movieRepository.findByNameContainingIgnoreCase(name, pageable)
+                .map(movieMapper::toResponse);
+    }
+
+    @Transactional(readOnly = true)
+    public Page<MovieResponse> searchByGenre(String genre, Pageable pageable) {
+        return movieRepository.findByGenreIgnoreCase(genre, pageable)
+                .map(movieMapper::toResponse);
     }
 }
