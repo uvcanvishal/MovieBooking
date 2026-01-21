@@ -2,12 +2,19 @@ package com.moviebooking.movie_booking_monolith.service;
 
 import com.moviebooking.movie_booking_monolith.dto.request.LoginRequest;
 import com.moviebooking.movie_booking_monolith.dto.request.RegisterRequest;
+import com.moviebooking.movie_booking_monolith.dto.response.LoginResponse;
 import com.moviebooking.movie_booking_monolith.dto.response.UserResponse;
 import com.moviebooking.movie_booking_monolith.entity.User;
 import com.moviebooking.movie_booking_monolith.exception.BadRequestException;
 import com.moviebooking.movie_booking_monolith.exception.ResourceNotFoundException;
 import com.moviebooking.movie_booking_monolith.repository.UserRepository;
+import com.moviebooking.movie_booking_monolith.security.JwtService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -18,6 +25,15 @@ public class AuthService {
     @Autowired
     private UserRepository userRepository;
 
+    @Autowired
+    private AuthenticationManager authenticationManager;  // NEW
+
+    @Autowired
+    private JwtService jwtService;  // NEW
+
+    @Autowired
+    private PasswordEncoder passwordEncoder;  // NEW (for register hashing)
+
     public UserResponse register(RegisterRequest request) {
         // Check if email exists
         if (userRepository.existsByEmail(request.getEmail())) {
@@ -27,7 +43,7 @@ public class AuthService {
         User user = new User();
         user.setName(request.getName());
         user.setEmail(request.getEmail());
-        user.setPassword(request.getPassword()); // In production: hash with BCrypt
+        user.setPassword(passwordEncoder.encode(request.getPassword()));  // NOW HASHED
 
         User saved = userRepository.save(user);
 
@@ -38,19 +54,33 @@ public class AuthService {
                 .build();
     }
 
-    public UserResponse login(LoginRequest request) {
-        User user = userRepository.findByEmail(request.getEmail())
-                .orElseThrow(() -> new ResourceNotFoundException("User", "email", request.getEmail()));
+    public LoginResponse login(LoginRequest request) {  // NOW RETURNS LoginResponse
+        // Use Spring Security to authenticate (handles BCrypt check)
+        Authentication authentication = authenticationManager.authenticate(
+                new UsernamePasswordAuthenticationToken(request.getEmail(), request.getPassword())
+        );
 
-        // In production: use BCrypt matches
-        if (!user.getPassword().equals(request.getPassword())) {
-            throw new BadRequestException("Invalid credentials");
-        }
+        // Get UserDetails after successful auth
+        UserDetails userDetails = (UserDetails) authentication.getPrincipal();
 
-        return UserResponse.builder()
-                .id(user.getId())
-                .name(user.getName())
-                .email(user.getEmail())
+        // Generate JWT
+        String token = jwtService.generateToken(userDetails);
+
+        // Return your existing UserResponse + token
+        return LoginResponse.builder()
+                .token(token)
+                .expiresInMs(86400000L)
+                .user(UserResponse.builder()
+                        .id(getUserByEmail(request.getEmail()).getId())
+                        .name(getUserByEmail(request.getEmail()).getName())
+                        .email(request.getEmail())
+                        .build())
                 .build();
+    }
+
+    // Helper (reuse your User entity)
+    private User getUserByEmail(String email) {
+        return userRepository.findByEmail(email)
+                .orElseThrow(() -> new ResourceNotFoundException("User", "email", email));
     }
 }

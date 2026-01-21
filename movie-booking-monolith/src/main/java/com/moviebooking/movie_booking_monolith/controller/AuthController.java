@@ -3,6 +3,7 @@ package com.moviebooking.movie_booking_monolith.controller;
 import com.moviebooking.movie_booking_monolith.dto.request.LoginRequest;
 import com.moviebooking.movie_booking_monolith.dto.request.RegisterRequest;
 import com.moviebooking.movie_booking_monolith.dto.response.ApiResponse;
+import com.moviebooking.movie_booking_monolith.dto.response.LoginResponse;
 import com.moviebooking.movie_booking_monolith.dto.response.UserResponse;
 import com.moviebooking.movie_booking_monolith.service.AuthService;
 import jakarta.validation.Valid;
@@ -26,8 +27,8 @@ public class AuthController {
     }
 
     @PostMapping("/login")
-    public ResponseEntity<ApiResponse<UserResponse>> login(@Valid @RequestBody LoginRequest request) {
-        UserResponse user = authService.login(request);
-        return ResponseEntity.ok(ApiResponse.success("Login successful", user));
+    public ResponseEntity<ApiResponse<LoginResponse>> login(@Valid @RequestBody LoginRequest request) {  // NOW LoginResponse
+        LoginResponse response = authService.login(request);  // NOW LoginResponse
+        return ResponseEntity.ok(ApiResponse.success("Login successful", response));
     }
 }
