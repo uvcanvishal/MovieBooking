@@ -1,6 +1,7 @@
 package com.moviebooking.movie_booking_monolith.service;
 
 import com.moviebooking.movie_booking_monolith.dto.request.SeatRequest;
+import com.moviebooking.movie_booking_monolith.dto.response.ApiResponse;
 import com.moviebooking.movie_booking_monolith.dto.response.SeatResponse;
 import com.moviebooking.movie_booking_monolith.entity.Seat;
 import com.moviebooking.movie_booking_monolith.entity.Theater;
@@ -11,6 +12,7 @@ import com.moviebooking.movie_booking_monolith.mapper.SeatMapper;
 import com.moviebooking.movie_booking_monolith.repository.SeatRepository;
 import com.moviebooking.movie_booking_monolith.repository.TheaterRepository;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -48,16 +50,17 @@ public class SeatService {
     }
 
     public SeatResponse create(SeatRequest request) {
+        // Validate input
+        if (request == null || request.getSeatNumber() == null || request.getTheaterId() == null) {
+            throw new BadRequestException("Valid seatNumber and theaterId required");
+        }
+
         Theater theater = theaterRepository.findById(request.getTheaterId())
                 .orElseThrow(() -> new ResourceNotFoundException("Theater", "id", request.getTheaterId()));
 
         // Check if seat already exists
-        boolean exists = seatRepository.existsByTheaterIdAndSeatNumber(
-                request.getTheaterId(), request.getSeatNumber());
-
-        if (exists) {
-            throw new BadRequestException("Seat " + request.getSeatNumber() +
-                    " already exists in this theater");
+        if (seatRepository.existsByTheaterIdAndSeatNumber(request.getTheaterId(), request.getSeatNumber())) {
+            throw new BadRequestException("Seat " + request.getSeatNumber() + " already exists");
         }
 
         Seat seat = new Seat();
@@ -66,8 +69,9 @@ public class SeatService {
         seat.setStatus(SeatStatus.AVAILABLE);
 
         Seat saved = seatRepository.save(seat);
-        return seatMapper.toResponse(saved);
+        return seatMapper.toResponse(saved);  // ← Returns SeatResponse directly
     }
+
 
     public List<SeatResponse> createBulk(Long theaterId, List<String> seatNumbers) {
         Theater theater = theaterRepository.findById(theaterId)

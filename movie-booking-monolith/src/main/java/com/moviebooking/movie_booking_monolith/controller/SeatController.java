@@ -38,7 +38,11 @@ public class SeatController {
     }
 
     @PostMapping
-    public ResponseEntity<ApiResponse<SeatResponse>> create(@Valid @RequestBody SeatRequest request) {
+    public ResponseEntity<ApiResponse<SeatResponse>> create(@Valid @RequestBody(required = false) SeatRequest request) {
+        if (request == null) {
+            return ResponseEntity.badRequest()
+                    .body(ApiResponse.error("Seat request body required"));
+        }
         SeatResponse created = seatService.create(request);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.success("Seat created successfully", created));

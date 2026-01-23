@@ -83,4 +83,18 @@ public class AuthService {
         return userRepository.findByEmail(email)
                 .orElseThrow(() -> new ResourceNotFoundException("User", "email", email));
     }
+
+    /**
+     * DAY 7: Extract userId from JWT Authentication (for controllers)
+     */
+    public Long getUserIdFromAuthentication(Authentication authentication) {
+        // Get UserDetails from JWT principal
+        UserDetails userDetails = (UserDetails) authentication.getPrincipal();
+        String email = userDetails.getUsername();  // JWT stores email as username
+
+        // Find user by email and return ID
+        return userRepository.findByEmail(email)
+                .orElseThrow(() -> new BadRequestException("User not found in token"))
+                .getId();
+    }
 }

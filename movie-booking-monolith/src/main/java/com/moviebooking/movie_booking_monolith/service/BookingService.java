@@ -84,10 +84,15 @@ public class BookingService {
             throw new BadRequestException("One or more seats not found in this theater");
         }
 
-        // 5. Check seat availability
+        // 5. Check LOCKED by this user (instead of AVAILABLE)
+        Long userId = request.getUserId();
+        LocalDateTime now = LocalDateTime.now();
         for (Seat seat : seats) {
-            if (seat.getStatus() != SeatStatus.AVAILABLE) {
-                throw new BadRequestException("Seat " + seat.getSeatNumber() + " is not available");
+            if (seat.getStatus() != SeatStatus.LOCKED
+                    || seat.getLockExpiryTime() == null
+                    || seat.getLockExpiryTime().isBefore(now)
+                    || !seat.getLockedByUserId().equals(userId)) {
+                throw new BadRequestException("Seat " + seat.getSeatNumber() + " not properly locked by you");
             }
         }
 

@@ -6,6 +6,8 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.time.LocalDateTime;
+
 @Entity
 @Table(name = "seats")
 @Data
@@ -17,7 +19,6 @@ public class Seat {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    // Example: A1, A2, B3
     @Column(nullable = false)
     private String seatNumber;
 
@@ -28,4 +29,11 @@ public class Seat {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private SeatStatus status = SeatStatus.AVAILABLE;
+
+    // DAY 7: Lock metadata
+    @Column(name = "lock_expiry_time")
+    private LocalDateTime lockExpiryTime;
+
+    @Column(name = "locked_by_user_id")
+    private Long lockedByUserId;
 }
