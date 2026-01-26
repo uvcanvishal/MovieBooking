@@ -96,25 +96,26 @@ public class BookingService {
             }
         }
 
-        // 6. Calculate total amount
+        // 6. Calculate total amount (same as before)
         double totalAmount = show.getPrice() * seats.size();
 
-        // 7. Create booking
+        // 7. Create booking as PENDING (waiting for payment)
         Booking booking = new Booking();
         booking.setUser(user);
         booking.setShow(show);
         booking.setSeats(seats);
         booking.setTotalAmount(totalAmount);
         booking.setBookingTime(LocalDateTime.now());
-        booking.setStatus(BookingStatus.CONFIRMED);
+        booking.setStatus(BookingStatus.PENDING);   // ← changed
 
         Booking saved = bookingRepository.save(booking);
 
-        // 8. Mark seats as booked
-        seats.forEach(seat -> seat.setStatus(SeatStatus.BOOKED));
-        seatRepository.saveAll(seats);
+        // 8. DO NOT mark seats as BOOKED here anymore.
+        // They stay LOCKED until payment success.
 
+        // Return response (same mapper)
         return bookingMapper.toResponse(saved);
+
     }
 
     public BookingResponse cancel(Long id) {
