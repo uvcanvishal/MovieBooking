@@ -1,5 +1,6 @@
 package com.moviebooking.movie_booking_monolith.service;
 
+import com.moviebooking.movie_booking_monolith.client.ExternalPaymentGatewayClient;
 import com.moviebooking.movie_booking_monolith.dto.request.PaymentCallbackRequest;
 import com.moviebooking.movie_booking_monolith.dto.request.PaymentInitRequest;
 import com.moviebooking.movie_booking_monolith.dto.response.PaymentInitResponse;
@@ -16,8 +17,13 @@ import com.moviebooking.movie_booking_monolith.repository.PaymentRepository;
 import com.moviebooking.movie_booking_monolith.repository.SeatRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
+import io.github.resilience4j.retry.annotation.Retry;
+
+
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -27,67 +33,106 @@ public class PaymentService {
     private final BookingRepository bookingRepository;
     private final PaymentRepository paymentRepository;
     private final SeatRepository seatRepository;
+    private final ExternalPaymentGatewayClient paymentGatewayClient;
 
     public PaymentService(BookingRepository bookingRepository,
                           PaymentRepository paymentRepository,
-                          SeatRepository seatRepository) {
+                          SeatRepository seatRepository,
+                          ExternalPaymentGatewayClient paymentGatewayClient) {
         this.bookingRepository = bookingRepository;
         this.paymentRepository = paymentRepository;
         this.seatRepository = seatRepository;
+        this.paymentGatewayClient = paymentGatewayClient;
     }
 
+    @CircuitBreaker(name = "paymentGateway", fallbackMethod = "initPaymentFallback")
+    @Retry(name = "paymentInit")
     public PaymentInitResponse initiatePayment(Long userId, PaymentInitRequest request) {
+        // 1. Your existing validation
         Booking booking = bookingRepository.findById(request.bookingId())
                 .orElseThrow(() -> new ResourceNotFoundException("Booking", "id", request.bookingId()));
 
-        // Ensure booking belongs to user and is in PENDING state
         if (!booking.getUser().getId().equals(userId)) {
-            throw new BadRequestException("You cannot pay for another user's booking");
+            throw new BadRequestException("Cannot pay for another user's booking");
         }
         if (booking.getStatus() != BookingStatus.PENDING) {
-            throw new BadRequestException("Booking is not in PENDING state");
+            throw new BadRequestException("Booking not PENDING");
         }
 
-        // For now we use INR and dummy gatewayOrderId
-        String currency = "INR";
-        String gatewayOrderId = "order_" + UUID.randomUUID();
-
-        Payment payment = paymentRepository.findByBookingId(booking.getId());
-        if (payment == null) {
+        // 2. Create/update Payment row (your existing logic)
+        List<Payment> payments = paymentRepository.findByBookingId(booking.getId());
+        Payment payment;
+        if (payments.isEmpty()) {
+            // First payment attempt
             payment = Payment.builder()
                     .booking(booking)
                     .amount(booking.getTotalAmount())
-                    .currency(currency)
-                    .gatewayOrderId(gatewayOrderId)
+                    .currency("INR")
                     .status(PaymentStatus.INITIATED)
                     .createdAt(LocalDateTime.now())
                     .updatedAt(LocalDateTime.now())
                     .build();
         } else {
-            // reuse existing row for retries
-            payment.setGatewayOrderId(gatewayOrderId);
+            // Update latest payment (retry)
+            payment = payments.get(payments.size() - 1);
             payment.setStatus(PaymentStatus.INITIATED);
             payment.setUpdatedAt(LocalDateTime.now());
         }
 
+        // 3. CALL FLAKY EXTERNAL GATEWAY ← This gets CircuitBreaker/Retry
+        PaymentInitResponse gatewayResponse =
+                paymentGatewayClient.createOrder(booking.getTotalAmount(), "INR");
+
+        // 4. Save gateway orderId
+        payment.setGatewayOrderId(gatewayResponse.gatewayOrderId());
         paymentRepository.save(payment);
 
         return new PaymentInitResponse(
                 booking.getId(),
                 booking.getTotalAmount(),
-                currency,
-                gatewayOrderId
+                "INR",
+                gatewayResponse.gatewayOrderId()
         );
     }
+
+    /**
+     * Fallback: When CircuitBreaker OPEN or all retries fail
+     */
+    public PaymentInitResponse initPaymentFallback(Long userId, PaymentInitRequest request, Exception ex) {
+        System.err.println("PAYMENT GATEWAY DOWN: " + ex.getMessage() + " → FALLBACK MODE");
+
+        // Create payment record without gateway (user retries later)
+        Booking booking = bookingRepository.findById(request.bookingId())
+                .orElseThrow(() -> new ResourceNotFoundException("Booking", "id", request.bookingId()));
+        Payment payment = Payment.builder()
+                .booking(booking)
+                .amount(booking.getTotalAmount())
+                .currency("INR")
+                .gatewayOrderId("FALLBACK_" + System.currentTimeMillis())
+                .status(PaymentStatus.INITIATED)
+                .createdAt(LocalDateTime.now())
+                .updatedAt(LocalDateTime.now())
+                .build();
+        paymentRepository.save(payment);
+
+        return new PaymentInitResponse(
+                request.bookingId(),
+                booking.getTotalAmount(),
+                "INR",
+                "FALLBACK_PAYMENT_RETRY_LATER"
+        );
+    }
+
 
     public void handleCallback(PaymentCallbackRequest request) {
         Booking booking = bookingRepository.findById(request.bookingId())
                 .orElseThrow(() -> new ResourceNotFoundException("Booking", "id", request.bookingId()));
 
-        Payment payment = paymentRepository.findByBookingId(booking.getId());
-        if (payment == null) {
+        List<Payment> payments = paymentRepository.findByBookingId(booking.getId());
+        if (payments.isEmpty()) {
             throw new BadRequestException("Payment not found for booking");
         }
+        Payment payment = payments.get(payments.size() - 1);  // Latest payment
 
         // Typically you verify signature + order id here (Razorpay HMAC etc.)
         // For Day 8, trust the "success" flag.

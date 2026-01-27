@@ -105,6 +105,31 @@
 			<artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
 			<version>2.8.9</version> <!-- or latest 2.8.x / 2.9.x -->
 		</dependency>
+
+		<!-- Resilience4j (Spring Boot 3 compatible) -->
+		<dependency>
+			<groupId>io.github.resilience4j</groupId>
+			<artifactId>resilience4j-spring-boot3</artifactId>
+			<version>2.2.0</version>
+		</dependency>
+		<dependency>
+			<groupId>io.github.resilience4j</groupId>
+			<artifactId>resilience4j-micrometer</artifactId>
+			<version>2.2.0</version>
+		</dependency>
+
+		<!-- Micrometer Prometheus -->
+		<dependency>
+			<groupId>io.micrometer</groupId>
+			<artifactId>micrometer-registry-prometheus</artifactId>
+		</dependency>
+
+		<!-- Spring Boot Actuator (usually already present) -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-actuator</artifactId>
+		</dependency>
+
 	</dependencies>
 
 	<build>
