@@ -16,6 +16,12 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 
+import com.moviebooking.movie_booking_monolith.service.kafka.EventProducer;
+import com.moviebooking.movie_booking_monolith.dto.event.BookingEvent;
+import java.time.Instant;
+import java.util.stream.Collectors;
+
+
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -37,6 +43,9 @@ public class BookingService {
 
     @Autowired
     private BookingMapper bookingMapper;
+
+    @Autowired
+    private EventProducer eventProducer;
 
     @Transactional(readOnly = true)
     public BookingResponse getById(Long id) {
@@ -109,6 +118,19 @@ public class BookingService {
         booking.setStatus(BookingStatus.PENDING);   // ← changed
 
         Booking saved = bookingRepository.save(booking);
+
+        BookingEvent event = BookingEvent.builder()
+                .bookingId(saved.getId())
+                .userId(saved.getUser().getId())
+                .showId(saved.getShow().getId())
+                .seatIds(saved.getSeats().stream().map(s -> s.getId()).collect(Collectors.toList()))
+                .status(saved.getStatus().name())
+                .amount(saved.getTotalAmount())
+                .eventTime(Instant.now())
+                .eventType("BOOKING_CREATED")
+                .build();
+
+        eventProducer.publishBookingEvent(event);
 
         // 8. DO NOT mark seats as BOOKED here anymore.
         // They stay LOCKED until payment success.

@@ -19,8 +19,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import io.github.resilience4j.retry.annotation.Retry;
-
-
+import com.moviebooking.movie_booking_monolith.service.kafka.EventProducer;
+import com.moviebooking.movie_booking_monolith.dto.event.PaymentEvent;
+import com.moviebooking.movie_booking_monolith.dto.event.BookingEvent;
+import java.time.Instant;
+import java.util.stream.Collectors;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -34,16 +37,20 @@ public class PaymentService {
     private final PaymentRepository paymentRepository;
     private final SeatRepository seatRepository;
     private final ExternalPaymentGatewayClient paymentGatewayClient;
+    private final EventProducer eventProducer;
 
     public PaymentService(BookingRepository bookingRepository,
                           PaymentRepository paymentRepository,
                           SeatRepository seatRepository,
-                          ExternalPaymentGatewayClient paymentGatewayClient) {
+                          ExternalPaymentGatewayClient paymentGatewayClient,
+                          EventProducer eventProducer) {  // ← ADD THIS
         this.bookingRepository = bookingRepository;
         this.paymentRepository = paymentRepository;
         this.seatRepository = seatRepository;
         this.paymentGatewayClient = paymentGatewayClient;
+        this.eventProducer = eventProducer;  // ← ADD THIS
     }
+
 
     @CircuitBreaker(name = "paymentGateway", fallbackMethod = "initPaymentFallback")
     @Retry(name = "paymentInit")
@@ -86,6 +93,19 @@ public class PaymentService {
         // 4. Save gateway orderId
         payment.setGatewayOrderId(gatewayResponse.gatewayOrderId());
         paymentRepository.save(payment);
+
+        // ← ADD THIS (after paymentRepository.save(payment))
+        PaymentEvent initEvent = PaymentEvent.builder()
+                .bookingId(booking.getId())
+                .userId(userId)
+                .gatewayOrderId(gatewayResponse.gatewayOrderId())
+                .status("INITIATED")
+                .amount(booking.getTotalAmount())
+                .eventTime(Instant.now())
+                .build();
+        eventProducer.publishPaymentEvent(initEvent);
+        // ← END
+
 
         return new PaymentInitResponse(
                 booking.getId(),
@@ -151,6 +171,31 @@ public class PaymentService {
                 seat.setLockedByUserId(null);
             }
             seatRepository.saveAll(booking.getSeats());
+            // ← ADD THIS (in if(request.success()))
+            PaymentEvent successEvent = PaymentEvent.builder()
+                    .bookingId(booking.getId())
+                    .userId(booking.getUser().getId())
+                    .gatewayOrderId(request.gatewayOrderId())
+                    .gatewayPaymentId(request.gatewayPaymentId())
+                    .status("SUCCESS")
+                    .amount(booking.getTotalAmount())
+                    .eventTime(Instant.now())
+                    .build();
+            eventProducer.publishPaymentEvent(successEvent);
+
+            BookingEvent confirmedEvent = BookingEvent.builder()
+                    .bookingId(booking.getId())
+                    .userId(booking.getUser().getId())
+                    .showId(booking.getShow().getId())
+                    .seatIds(booking.getSeats().stream().map(s -> s.getId()).collect(Collectors.toList()))
+                    .status("CONFIRMED")
+                    .amount(booking.getTotalAmount())
+                    .eventTime(Instant.now())
+                    .eventType("BOOKING_CONFIRMED")
+                    .build();
+            eventProducer.publishBookingEvent(confirmedEvent);
+            // ← END (before bookingRepository.save)
+
         } else {
             payment.setStatus(PaymentStatus.FAILED);
             booking.setStatus(BookingStatus.FAILED);
@@ -161,6 +206,33 @@ public class PaymentService {
                 seat.setLockedByUserId(null);
             }
             seatRepository.saveAll(booking.getSeats());
+
+            // ← ADD THIS (in else)
+            PaymentEvent failedEvent = PaymentEvent.builder()
+                    .bookingId(booking.getId())
+                    .userId(booking.getUser().getId())
+                    .gatewayOrderId(request.gatewayOrderId())
+                    .gatewayPaymentId(request.gatewayPaymentId())
+                    .status("FAILED")
+                    .amount(booking.getTotalAmount())
+                    .eventTime(Instant.now())
+                    .failureReason("PAYMENT_FAILED")
+                    .build();
+            eventProducer.publishPaymentEvent(failedEvent);
+
+            BookingEvent failedBookingEvent = BookingEvent.builder()
+                    .bookingId(booking.getId())
+                    .userId(booking.getUser().getId())
+                    .showId(booking.getShow().getId())
+                    .seatIds(booking.getSeats().stream().map(s -> s.getId()).collect(Collectors.toList()))
+                    .status("FAILED")
+                    .amount(booking.getTotalAmount())
+                    .eventTime(Instant.now())
+                    .eventType("BOOKING_FAILED")
+                    .build();
+            eventProducer.publishBookingEvent(failedBookingEvent);
+            // ← END (before bookingRepository.save)
+
         }
 
         bookingRepository.save(booking);
