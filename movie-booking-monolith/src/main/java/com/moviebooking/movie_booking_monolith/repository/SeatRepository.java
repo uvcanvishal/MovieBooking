@@ -24,4 +24,7 @@ public interface SeatRepository extends JpaRepository<Seat, Long> {
     List<Seat> findByStatusAndLockExpiryTimeBefore(SeatStatus status, LocalDateTime time);
 
     List<Seat> findByLockedByUserIdAndTheaterIdAndSeatNumberIn(Long userId, Long theaterId, List<String> seatNumbers);
+
+    List<Seat> findByTheaterIdAndSeatNumberInAndStatus(Long theaterId, List<String> seatNumbers, SeatStatus status);
+
 }

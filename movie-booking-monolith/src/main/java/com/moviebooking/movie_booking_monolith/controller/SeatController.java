@@ -55,4 +55,10 @@ public class SeatController {
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.success("Seats created successfully", created));
     }
+
+    @PostMapping("/hold/{theaterId}")
+    public ResponseEntity<ApiResponse<List<SeatResponse>>> holdSeats(@PathVariable Long theaterId, @RequestBody List<String> seatNumbers) {
+        return ResponseEntity.ok(seatService.holdSeats(theaterId, seatNumbers));
+    }
+
 }

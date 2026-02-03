@@ -1,0 +1,14 @@
+version: '3.8'
+services:
+  redis:
+    image: redis:7.2-alpine
+    container_name: movie-redis
+    ports:
+      - "6379:6379"
+    command: redis-server --bind 0.0.0.0 --appendonly yes --requirepass movie123
+    volumes:
+      - redis-data:/data
+    restart: unless-stopped
+
+volumes:
+  redis-data:

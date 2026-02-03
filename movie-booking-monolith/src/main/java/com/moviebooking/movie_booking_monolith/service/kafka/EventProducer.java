@@ -3,6 +3,7 @@ package com.moviebooking.movie_booking_monolith.service.kafka;
 import com.moviebooking.movie_booking_monolith.config.KafkaTopics;
 import com.moviebooking.movie_booking_monolith.dto.event.BookingEvent;
 import com.moviebooking.movie_booking_monolith.dto.event.PaymentEvent;
+import com.moviebooking.movie_booking_monolith.dto.event.SeatHeldEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.core.KafkaTemplate;
@@ -49,4 +50,21 @@ public class EventProducer {
                     return null;
                 });
     }
+
+    public CompletableFuture<Void> publishSeatHeldEvent(SeatHeldEvent event) {
+        return kafkaTemplate.send("seat-held-events", event.getShowId(), event)
+                .handle((result, ex) -> {
+                    if (ex == null) {
+                        log.info("SeatHeldEvent sent to {} partition={} offset={}",
+                                result.getRecordMetadata().topic(),
+                                result.getRecordMetadata().partition(),
+                                result.getRecordMetadata().offset());
+                    } else {
+                        log.error("Failed to send SeatHeldEvent", ex);
+                    }
+                    return null;
+                });
+    }
+
+
 }

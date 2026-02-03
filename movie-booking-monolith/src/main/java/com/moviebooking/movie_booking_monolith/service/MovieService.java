@@ -11,6 +11,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.CacheEvict;
+
 
 import java.util.List;
 
@@ -25,6 +28,7 @@ public class MovieService {
     private MovieMapper movieMapper;
 
     @Transactional(readOnly = true)
+    @Cacheable(value = "movies:all")
     public List<MovieResponse> getAll() {
         List<Movie> movies = movieRepository.findAll();
         return movieMapper.toResponseList(movies);
@@ -36,6 +40,7 @@ public class MovieService {
         return movieMapper.toResponse(movie);
     }
 
+    @CacheEvict(value = "movies:all", allEntries = true)
     public MovieResponse create(MovieRequest request) {
         Movie movie = movieMapper.toEntity(request);
         Movie saved = movieRepository.save(movie);

@@ -1,5 +1,7 @@
 package com.moviebooking.movie_booking_monolith.service;
 
+import com.moviebooking.movie_booking_monolith.annotation.RedisLock;
+import com.moviebooking.movie_booking_monolith.dto.event.SeatHeldEvent;
 import com.moviebooking.movie_booking_monolith.dto.request.SeatRequest;
 import com.moviebooking.movie_booking_monolith.dto.response.ApiResponse;
 import com.moviebooking.movie_booking_monolith.dto.response.SeatResponse;
@@ -11,10 +13,15 @@ import com.moviebooking.movie_booking_monolith.exception.ResourceNotFoundExcepti
 import com.moviebooking.movie_booking_monolith.mapper.SeatMapper;
 import com.moviebooking.movie_booking_monolith.repository.SeatRepository;
 import com.moviebooking.movie_booking_monolith.repository.TheaterRepository;
+import com.moviebooking.movie_booking_monolith.service.kafka.EventProducer;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import com.moviebooking.movie_booking_monolith.annotation.RedisLock;
+import java.time.LocalDateTime;
+
+
 
 import java.util.List;
 
@@ -30,6 +37,9 @@ public class SeatService {
 
     @Autowired
     private SeatMapper seatMapper;
+
+    @Autowired
+    private EventProducer eventProducer;  // Day 10 Kafka
 
     @Transactional(readOnly = true)
     public List<SeatResponse> getAll() {
@@ -91,4 +101,40 @@ public class SeatService {
         List<Seat> saved = seatRepository.saveAll(seats);
         return seatMapper.toResponseList(saved);
     }
+
+
+    @RedisLock(key = "seat-hold:{theaterId}:{#seatNumbers[0]}")
+    public ApiResponse<List<SeatResponse>> holdSeats(Long theaterId, List<String> seatNumbers) {
+        // Check AVAILABLE seats
+        List<Seat> available = seatRepository.findByTheaterIdAndSeatNumberInAndStatus(
+                theaterId, seatNumbers, SeatStatus.AVAILABLE);
+
+        if (available.size() != seatNumbers.size()) {
+            return ApiResponse.error("Some seats unavailable");
+        }
+
+        LocalDateTime expiryTime = LocalDateTime.now().plusMinutes(1);
+        Long currentUserId = 1L; // TODO: SecurityContextHolder.getContext().getAuthentication().getName();
+
+        available.forEach(seat -> {
+            seat.setStatus(SeatStatus.LOCKED);
+            seat.setLockExpiryTime(expiryTime);  // ← ADD THIS
+            seat.setLockedByUserId(currentUserId); // ← ADD THIS
+        });
+        List<Seat> lockedSeats = seatRepository.saveAll(available);
+
+        // ✅ FIXED Kafka event - use first seat as example
+        String firstSeatNumber = seatNumbers.get(0);
+        Seat firstSeat = lockedSeats.get(0);
+        eventProducer.publishSeatHeldEvent(new SeatHeldEvent(
+                theaterId.toString(),      // showId
+                firstSeat.getId(),         // seatId
+                "user-from-jwt",           // TODO: get from SecurityContextHolder
+                java.time.LocalDateTime.now().plusMinutes(10)  // holdUntil
+        ));
+
+        return ApiResponse.success("🔒 Seats locked", seatMapper.toResponseList(lockedSeats));
+    }
+
+
 }
