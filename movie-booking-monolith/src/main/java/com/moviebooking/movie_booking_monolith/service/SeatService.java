@@ -21,6 +21,9 @@ import org.springframework.transaction.annotation.Transactional;
 import com.moviebooking.movie_booking_monolith.annotation.RedisLock;
 import java.time.LocalDateTime;
 
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.CacheEvict;
+
 
 
 import java.util.List;
@@ -54,6 +57,7 @@ public class SeatService {
     }
 
     @Transactional(readOnly = true)
+    @Cacheable(value = "seats", key = "'theater_' + #theaterId + '_AVAILABLE'")
     public List<SeatResponse> getAvailableByTheater(Long theaterId) {
         List<Seat> seats = seatRepository.findByTheaterIdAndStatus(theaterId, SeatStatus.AVAILABLE);
         return seatMapper.toResponseList(seats);
@@ -103,6 +107,7 @@ public class SeatService {
     }
 
 
+    @CacheEvict(value = "seats", key = "'theater_' + #theaterId + '_AVAILABLE'")
     @RedisLock(key = "seat-hold:{theaterId}:{#seatNumbers[0]}")
     public ApiResponse<List<SeatResponse>> holdSeats(Long theaterId, List<String> seatNumbers) {
         // Check AVAILABLE seats

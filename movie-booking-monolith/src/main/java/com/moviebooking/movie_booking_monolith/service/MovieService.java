@@ -28,7 +28,7 @@ public class MovieService {
     private MovieMapper movieMapper;
 
     @Transactional(readOnly = true)
-    @Cacheable(value = "movies:all")
+    @Cacheable(value = "movies:all", unless = "#result.isEmpty()")
     public List<MovieResponse> getAll() {
         List<Movie> movies = movieRepository.findAll();
         return movieMapper.toResponseList(movies);
@@ -54,6 +54,7 @@ public class MovieService {
         return movieMapper.toResponse(updated);
     }
 
+    @CacheEvict(value = "movies:all", allEntries = true)
     public void delete(Long id) {
         Movie movie = findMovieById(id);
         movieRepository.delete(movie);
