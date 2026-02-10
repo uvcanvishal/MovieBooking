@@ -15,6 +15,7 @@ import com.moviebooking.movie_booking_monolith.exception.ResourceNotFoundExcepti
 import com.moviebooking.movie_booking_monolith.repository.BookingRepository;
 import com.moviebooking.movie_booking_monolith.repository.PaymentRepository;
 import com.moviebooking.movie_booking_monolith.repository.SeatRepository;
+import io.github.resilience4j.ratelimiter.annotation.RateLimiter;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
@@ -54,6 +55,7 @@ public class PaymentService {
 
     @CircuitBreaker(name = "paymentGateway", fallbackMethod = "initPaymentFallback")
     @Retry(name = "paymentInit")
+    @RateLimiter(name = "paymentInit", fallbackMethod = "rateLimitFallback")
     public PaymentInitResponse initiatePayment(Long userId, PaymentInitRequest request) {
         // 1. Your existing validation
         Booking booking = bookingRepository.findById(request.bookingId())
@@ -237,5 +239,16 @@ public class PaymentService {
 
         bookingRepository.save(booking);
         paymentRepository.save(payment);
+    }
+
+    public PaymentInitResponse rateLimitFallback(Long userId, PaymentInitRequest request, Throwable t) {
+        System.err.println("🚫 RATE LIMITED: User " + userId + " exceeded 100 req/min limit");
+
+        return new PaymentInitResponse(
+                request.bookingId(),
+                0.0,
+                "INR",
+                "RATE_LIMITED_TRY_AGAIN_IN_1_MINUTE"
+        );
     }
 }
