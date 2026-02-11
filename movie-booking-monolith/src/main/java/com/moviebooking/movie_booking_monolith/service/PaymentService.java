@@ -25,6 +25,8 @@ import com.moviebooking.movie_booking_monolith.dto.event.PaymentEvent;
 import com.moviebooking.movie_booking_monolith.dto.event.BookingEvent;
 import java.time.Instant;
 import java.util.stream.Collectors;
+import io.github.resilience4j.bulkhead.annotation.Bulkhead;
+import io.github.resilience4j.bulkhead.BulkheadFullException;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -56,6 +58,7 @@ public class PaymentService {
     @CircuitBreaker(name = "paymentGateway", fallbackMethod = "initPaymentFallback")
     @Retry(name = "paymentInit")
     @RateLimiter(name = "paymentInit", fallbackMethod = "rateLimitFallback")
+    @Bulkhead(name = "paymentInit", fallbackMethod = "paymentInitBulkheadFallback")
     public PaymentInitResponse initiatePayment(Long userId, PaymentInitRequest request) {
         // 1. Your existing validation
         Booking booking = bookingRepository.findById(request.bookingId())
@@ -251,4 +254,20 @@ public class PaymentService {
                 "RATE_LIMITED_TRY_AGAIN_IN_1_MINUTE"
         );
     }
+
+    public PaymentInitResponse paymentInitBulkheadFallback(Long userId,
+                                                           PaymentInitRequest request,
+                                                           BulkheadFullException ex) {
+        System.err.println("🧱 BULKHEAD FULL for user " + userId
+                + " booking " + request.bookingId()
+                + " → " + ex.getMessage());
+
+        return new PaymentInitResponse(
+                request.bookingId(),
+                0.0,
+                "INR",
+                "PAYMENT_SYSTEM_BUSY_TRY_AGAIN"
+        );
+    }
+
 }
