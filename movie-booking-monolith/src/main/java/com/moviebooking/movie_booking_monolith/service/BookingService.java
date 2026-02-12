@@ -47,6 +47,9 @@ public class BookingService {
     @Autowired
     private EventProducer eventProducer;
 
+    @Autowired
+    private EmailService emailService;
+
     @Transactional(readOnly = true)
     public BookingResponse getById(Long id) {
         Booking booking = findBookingById(id);

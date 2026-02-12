@@ -27,6 +27,7 @@ import java.time.Instant;
 import java.util.stream.Collectors;
 import io.github.resilience4j.bulkhead.annotation.Bulkhead;
 import io.github.resilience4j.bulkhead.BulkheadFullException;
+import com.moviebooking.movie_booking_monolith.service.EmailService;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -41,17 +42,20 @@ public class PaymentService {
     private final SeatRepository seatRepository;
     private final ExternalPaymentGatewayClient paymentGatewayClient;
     private final EventProducer eventProducer;
+    private final EmailService emailService;
 
     public PaymentService(BookingRepository bookingRepository,
                           PaymentRepository paymentRepository,
                           SeatRepository seatRepository,
                           ExternalPaymentGatewayClient paymentGatewayClient,
-                          EventProducer eventProducer) {  // ← ADD THIS
+                          EventProducer eventProducer,
+                          EmailService emailService) {  // ← ADD THIS
         this.bookingRepository = bookingRepository;
         this.paymentRepository = paymentRepository;
         this.seatRepository = seatRepository;
         this.paymentGatewayClient = paymentGatewayClient;
-        this.eventProducer = eventProducer;  // ← ADD THIS
+        this.eventProducer = eventProducer;
+        this.emailService = emailService;  // ← ADD THIS
     }
 
 
@@ -198,8 +202,13 @@ public class PaymentService {
                     .eventTime(Instant.now())
                     .eventType("BOOKING_CONFIRMED")
                     .build();
+            bookingRepository.save(booking);
+            paymentRepository.save(payment);
             eventProducer.publishBookingEvent(confirmedEvent);
             // ← END (before bookingRepository.save)
+
+
+            emailService.sendBookingConfirmationAsync(booking.getId(), booking.getUser().getEmail());
 
         } else {
             payment.setStatus(PaymentStatus.FAILED);
@@ -235,13 +244,13 @@ public class PaymentService {
                     .eventTime(Instant.now())
                     .eventType("BOOKING_FAILED")
                     .build();
+            bookingRepository.save(booking);
+            paymentRepository.save(payment);
             eventProducer.publishBookingEvent(failedBookingEvent);
             // ← END (before bookingRepository.save)
 
         }
 
-        bookingRepository.save(booking);
-        paymentRepository.save(payment);
     }
 
     public PaymentInitResponse rateLimitFallback(Long userId, PaymentInitRequest request, Throwable t) {

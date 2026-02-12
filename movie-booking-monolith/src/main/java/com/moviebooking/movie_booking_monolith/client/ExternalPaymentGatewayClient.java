@@ -23,7 +23,7 @@ public class ExternalPaymentGatewayClient {
         }
 
         // 20% timeout fail → Triggers RETRY backoff
-        if (Math.random() < 0.8) {
+        if (Math.random() < 0.2) {
             System.out.println("🛑 Gateway timeout (20%) → RETRY expected");
             throw new RestClientException("Gateway timeout");
         }

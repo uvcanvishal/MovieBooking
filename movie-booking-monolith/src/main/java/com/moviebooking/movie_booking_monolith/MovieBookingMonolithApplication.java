@@ -14,11 +14,14 @@ import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.serializer.GenericJackson2JsonRedisSerializer;
 import org.springframework.data.redis.serializer.RedisSerializationContext;
 import org.springframework.data.redis.serializer.StringRedisSerializer;
+import org.springframework.scheduling.annotation.EnableAsync;
+
 import java.time.Duration;
 
 @SpringBootApplication(exclude = {RedissonAutoConfigurationV2.class})
 @EnableAspectJAutoProxy(exposeProxy = true)
 @EnableCaching
+@EnableAsync
 public class MovieBookingMonolithApplication {
 
 	public static void main(String[] args) {
